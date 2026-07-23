@@ -173,6 +173,7 @@ impl BufferedData {
         let output_io_time = self.output_io_time.clone();
         let mut iter = self.into_sorted_batches()?;
         let mut writer = IpcCompressionWriter::new(RssWriter::new(rss_partition_writer.clone(), 0));
+        let mut total_pushed: u64 = 0;
 
         while let Some((partition_id, batch_iter)) = iter.next_partition_chunk() {
             if !is_task_running() {
@@ -186,12 +187,17 @@ impl BufferedData {
                     .with_timer(|| writer.write_batch(batch.num_rows(), batch.columns()))?;
             }
             output_io_time.with_timer(|| writer.finish_current_buf())?;
+            total_pushed += writer.inner().total_written();
         }
 
         output_io_time.with_timer(
             || jni_call!(AuronRssPartitionWriterBase(rss_partition_writer.as_obj()).flush() -> ()),
         )?;
-        log::info!("all buffered data drained to rss");
+        log::info!(
+            "all buffered data drained to rss, pushed_compressed={}, uncompressed_mem={}",
+            ByteSize(total_pushed),
+            mem_used
+        );
         Ok(())
     }
 

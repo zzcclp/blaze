@@ -21,6 +21,7 @@ use jni::objects::GlobalRef;
 pub struct RssWriter {
     rss_partition_writer: GlobalRef,
     partition_id: usize,
+    total_written: u64,
 }
 
 impl RssWriter {
@@ -28,7 +29,12 @@ impl RssWriter {
         Self {
             rss_partition_writer,
             partition_id,
+            total_written: 0,
         }
+    }
+
+    pub fn total_written(&self) -> u64 {
+        self.total_written
     }
 }
 
@@ -40,6 +46,7 @@ impl Write for RssWriter {
             AuronRssPartitionWriterBase(self.rss_partition_writer.as_obj())
                 .write(self.partition_id as i32, buf.as_obj()) -> ()
         )?;
+        self.total_written += buf_len as u64;
         Ok(buf_len)
     }
 
